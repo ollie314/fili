@@ -10,7 +10,9 @@ Current
 
 ### Added:
 
+- [Documentation for topN](https://github.com/yahoo/fili/pull/43)
 
+-  [Functional tests for Asynchronous queries](https://github.com/yahoo/fili/pull/35)
 
 ### Changed:
 
