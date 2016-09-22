@@ -566,13 +566,13 @@ performs any post-Druid calculations on one of the metrics that you are sorting 
 
 ### TopN ###
 
-Suppose we would like to know which three pages have the three pageview counts for each week between January and 
-September 2014. We can easily answer such a question with a `topN` query. `topN` queries allows us to ask for the top-n 
+Suppose we would like to know which three pages have the top three pageview counts for each week between January and 
+September 2014. We can easily answer such a question with a `topN` query. `topN` queries allow us to ask for the top N 
 results for each time bucket in a request. Of course, a `topN` query implies that some sort of ordering has been imposed
  on the data. Therefore, a `topN` query has two components:
 
 1. `topN=n` where `n` is the number of results to return for each bucket
-2. `sort=metricName|dir` telling Fili how to sort the results before taking the top-n. See the section on 
+2. `sort=metricName|dir` telling Fili how to sort the results before taking the top N. See the section on 
 [sorting](#sorting) for more details about the sort clause.
 
 Going back to the sample question at the start of the section, let's see how that looks as a
@@ -581,20 +581,22 @@ Going back to the sample question at the start of the section, let's see how tha
     GET https://sampleapp.fili.io/v1/data/network/week/pages?metrics=pageViews&dateTime=2014-06-01/2014-08-31&topN=3&sort=pageViews|desc
 
 We want the three highest pageview counts for each week, so `n` is set to three, and the query is aggregated to the week
-granularity. Furthermore, we want the three highest pagecounts. Therefore, we sort `pageViews` in descending order (the
+granularity. Furthermore, we want the three _largest_ pagecounts. Therefore, we sort `pageViews` in descending order (the
 first entry is the highest, the second entry is the lowest, and so on).
 
-Fili supports asking for multiple metrics in a `topN` query. However, the `topN` is only computed with respect to the
-metric being sorted on.
-
-Suppose we want to know the [daily average time spent (`dayAvgTimeSpent`) on the three pages with the highest
-number of page views for each week between January 6th and September 1st](https://sampleapp.fili.io/v1/data/network/week/pages?metrics=pageViews,dayAvgTimeSpent&dateTime=2014-06-01/2014-08-31&topN=3&sort=pageViews|desc).
+Fili also supports asking for multiple metrics in a `topN` query. Suppose we want to know the [daily average time spent (`dayAvgTimeSpent`) on the 
+three pages with the highest number of page views for each week between January 6th and September 
+1st](https://sampleapp.fili.io/v1/data/network/week/pages?metrics=pageViews,dayAvgTimeSpent&dateTime=2014-06-01/2014-08-31&topN=3&sort=pageViews|desc).
 
 Then, we only need to add `dayAvgTimeSpent` to our original `topN` query:
 
     GET https://sampleapp.fili.io/v1/data/network/week/pages?metrics=pageViews,dayAvgTimeSpent&dateTime=2014-06-01/2014-08-31&topN=3&sort=pageViews|desc
 
-Remember that `topN` provides the top-n results _for each time bucket_. Therefore, when we ask a `topN` query, we will
+#### Caveats ####
+
+When executing a `topN` query with multiple metrics, Fili will compute the top N results using the sorted metric _only_.
+
+Remember that `topN` provides the top N results _for each time bucket_. Therefore, when we ask a `topN` query, we will
 get `n * numBuckets` results. In both of the examples above, we would get `3 * 34 = 102` results. If you are only
 interested in the first `n` results, see [pagination/limit](#pagination--limit).
 
