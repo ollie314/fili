@@ -85,8 +85,10 @@ class TableUtilsSpec extends  Specification {
         request.filterDimensions >> ds1
         query.metricDimensions >> ds1
         query.dependentFieldNames >> ([metric1, metric2, metric3] as Set)
+        PhysicalTable physicalTable = new PhysicalTable("", DefaultTimeGrain.DAY.buildZonedTimeGrain(DateTimeZone.UTC), [:])
+        0 * physicalTable.getPhysicalColumnName(_)
 
         expect:
-        TableUtils.getColumnNames(request, query, new PhysicalTable("", DefaultTimeGrain.DAY.buildZonedTimeGrain(DateTimeZone.UTC), [:])) == [d1Name, metric1, metric2, metric3] as Set
+        TableUtils.getColumnNames(request, query, physicalTable) == [d1Name, metric1, metric2, metric3] as Set
     }
 }

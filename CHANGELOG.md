@@ -95,6 +95,9 @@ Jobs resource. Here are the highlights of what's in this release:
 
 ### Changed:
 
+- [Removed the physicaName lookup for the logical metric name](https://github.com/yahoo/fili/pull/55)
+  * Updated `TableUtils::getColumnNames`
+
 #### Jobs:
 
 - [HashPreResponseStore moved to `test` root directory.](https://github.com/yahoo/fili/pull/39)
