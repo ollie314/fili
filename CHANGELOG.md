@@ -14,6 +14,10 @@ Current
 
 ### Changed:
 
+- [Updated commons-collections4 dependency from 4.0 to 4.1 to address a security vulnerability in the library.](https://github.com/yahoo/fili/pull/52)
+    * For details see: https://commons.apache.org/proper/commons-collections/security-reports.html#Apache_Commons_Collections_Security_Vulnerabilities
+    * It should be noted that Fili does not make use of any the serialization/deserialization capabilities of any classes in the functor package, so the security vulnerability does not affect Fili.
+
 - Corrected bug with Fili sub-module dependency specification
   * Dependency versions are now set via a fixed property at deploy time, rather than relying on `project.version`
 
