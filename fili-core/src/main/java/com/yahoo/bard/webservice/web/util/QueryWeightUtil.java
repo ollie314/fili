@@ -155,7 +155,7 @@ public class QueryWeightUtil {
      */
     public boolean skipWeightCheckQuery(DruidAggregationQuery<?> query) {
         try {
-            long worstCaseRows = WeightEvaluationQuery.getWorstCaseWeightEstimate(query);
+            long worstCaseRows = query.getInnermostQuery().computeWeight();
             double skipThreshold = getQueryWeightThreshold(query.getGranularity()) / weightCheckBypassFactor;
             return worstCaseRows <= skipThreshold;
         } catch (ArithmeticException ignored) {
@@ -173,6 +173,6 @@ public class QueryWeightUtil {
      * @return the converted query
      */
     public WeightEvaluationQuery makeWeightEvaluationQuery(DruidAggregationQuery<?> druidQuery) {
-        return WeightEvaluationQuery.makeWeightEvaluationQuery(druidQuery);
+        return druidQuery.getInnermostQuery().buildWeightEvaluationQuery();
     }
 }

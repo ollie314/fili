@@ -2,6 +2,7 @@
 // Licensed under the terms of the Apache license. Please see LICENSE.md file distributed with this work for terms.
 package com.yahoo.bard.webservice.druid.model.query
 
+import com.yahoo.bard.webservice.druid.model.aggregation.SketchAggregation
 import com.yahoo.bard.webservice.table.PhysicalTable
 
 import static com.yahoo.bard.webservice.data.time.DefaultTimeGrain.DAY
@@ -26,6 +27,8 @@ import com.yahoo.bard.webservice.druid.model.postaggregation.ArithmeticPostAggre
 import com.yahoo.bard.webservice.druid.model.postaggregation.FieldAccessorPostAggregation
 import com.yahoo.bard.webservice.druid.model.postaggregation.PostAggregation
 import com.yahoo.bard.webservice.util.GroovyTestUtils
+import com.yahoo.bard.webservice.web.DataApiRequest
+import com.yahoo.bard.webservice.web.endpoints.DataServlet
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
@@ -42,6 +45,7 @@ class GroupByQuerySpec extends Specification {
 
     @Shared
     DateTimeZone currentTZ
+    DataServlet dataServlet
 
     def setupSpec() {
         currentTZ = DateTimeZone.getDefault()
@@ -492,4 +496,19 @@ class GroupByQuerySpec extends Specification {
         converted.innerQuery.intervals == endingIntervals
         converted.innerQuery.innerQuery.intervals == endingIntervals
     }
+
+    def  "GroupByQuery computes the correct weight"
+        given: "A druid query with the daily time grain"
+        TableDataSource table = new TableDataSource(
+                new PhysicalTable("inner1", DAY.buildZonedTimeGrain(DateTimeZone.UTC), [:])
+        )
+        GroupByQuery groupByQuery = defaultQuery(
+                dataSource: table,
+                aggregations: [Mock(SketchAggregation), ]
+        )
+
+        expect: "Worst case is # of Sketches * # of days * Cardinality of all dimensions"
+        WeightEvaluationQuery.getWorstCaseWeightEstimate(groupByQuery) == 1 * 29 * 8 * queryWeightLimit
+}
+
 }

@@ -4,6 +4,7 @@ package com.yahoo.bard.webservice.druid.model.query;
 
 import com.yahoo.bard.webservice.data.dimension.Dimension;
 import com.yahoo.bard.webservice.druid.model.aggregation.Aggregation;
+import com.yahoo.bard.webservice.druid.model.datasource.DataSource;
 import com.yahoo.bard.webservice.druid.model.postaggregation.PostAggregation;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -84,6 +85,31 @@ public interface DruidAggregationQuery<Q extends DruidAggregationQuery<? super Q
      * @return the query copy
      */
     Q withPostAggregations(Collection<PostAggregation> postAggregations);
+
+    /**
+     * Provides a rough, relative measure of how much work the backend is expected to perform to answer the query.
+     * <p>
+     * Higher weight values correspond to queries that are expected to take more time and resources for the backend
+     * to process.
+     *
+     * @return A number providing a relative measure of how heavy the query is expected to be
+     *
+     * @throws ArithmeticException if the estimate is larger than {@link Long#MAX_VALUE}
+     */
+    long computeWeight();
+
+    /**
+     * Build a backend query that provides a more accurate weight for this query.
+     * <p>
+     * If the weight returned by `computeWeight` is sufficiently large, Fili sends a simple query to the backend that
+     * computes a more accurate weight. It will use the query returned by this method to
+     * compute that weight.
+     *
+     * @return A query that can be sent to the backend to compute a more accurate weight for the
+     * query
+     */
+    DruidAggregationQuery<?> buildWeightEvaluationQuery();
+
 
     @Override
     @JsonIgnore

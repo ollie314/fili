@@ -3,12 +3,17 @@
 package com.yahoo.bard.webservice.druid.model.query;
 
 import com.yahoo.bard.webservice.data.dimension.Dimension;
-import com.yahoo.bard.webservice.druid.model.QueryType;
+import com.yahoo.bard.webservice.druid.model.DefaultQueryType;
 import com.yahoo.bard.webservice.druid.model.aggregation.Aggregation;
+import com.yahoo.bard.webservice.druid.model.aggregation.LongSumAggregation;
+import com.yahoo.bard.webservice.druid.model.aggregation.SketchAggregation;
 import com.yahoo.bard.webservice.druid.model.datasource.DataSource;
+import com.yahoo.bard.webservice.druid.model.datasource.QueryDataSource;
+import com.yahoo.bard.webservice.druid.model.datasource.UnionDataSource;
 import com.yahoo.bard.webservice.druid.model.filter.Filter;
 import com.yahoo.bard.webservice.druid.model.orderby.TopNMetric;
 import com.yahoo.bard.webservice.druid.model.postaggregation.PostAggregation;
+import com.yahoo.bard.webservice.util.Utils;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -22,6 +27,7 @@ import java.util.Collections;
  * Druid topN query.
  */
 public class TopNQuery extends AbstractDruidAggregationQuery<TopNQuery> {
+    public static final long DEFAULT_DRUID_TOP_N_THRESHOLD = 1000;
 
     private final long threshold;
 
@@ -58,7 +64,7 @@ public class TopNQuery extends AbstractDruidAggregationQuery<TopNQuery> {
             boolean doFork
     ) {
         super(
-                QueryType.TOP_N,
+                DefaultQueryType.TOP_N,
                 dataSource,
                 granularity,
                 Collections.singletonList(dimension),
@@ -131,6 +137,43 @@ public class TopNQuery extends AbstractDruidAggregationQuery<TopNQuery> {
     public TopNMetric getMetric() {
         return metric;
     }
+
+    @Override
+    public DruidAggregationQuery<?> buildWeightEvaluationQuery() {
+        return new GroupByQuery(
+                makeInnerQuery(),
+                AllGranularity.INSTANCE,
+                Collections.emptyList(),
+                null, //filters
+                null, //having
+                Collections.singletonList(new LongSumAggregation("count", "count")),
+                Collections.emptyList(),
+                getIntervals(),
+                null // limit spec
+        );
+    }
+
+    private DataSource makeInnerQuery() {
+        GroupByQuery innerQuery = new GroupByQuery(
+                new UnionDataSource(getDataSource().getPhysicalTables()),
+                getGranularity(),
+                getDimensions(),
+                getFilter(),
+                null,
+                aggregations,
+                postAggregations,
+                getIntervals(),
+                null
+        );
+        return new QueryDataSource(innerQuery);
+    }
+
+    @Override
+    protected long computeCardinalityWeight() {
+        return Math.min(getDimension().getCardinality(), Math.max(getThreshold(), DEFAULT_DRUID_TOP_N_THRESHOLD));
+    }
+
+
 
     // CHECKSTYLE:OFF
     @Override

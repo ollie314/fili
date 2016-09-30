@@ -2,8 +2,12 @@
 // Licensed under the terms of the Apache license. Please see LICENSE.md file distributed with this work for terms.
 package com.yahoo.bard.webservice.druid.model.query;
 
+import static com.yahoo.bard.webservice.druid.model.DefaultQueryType.GROUP_BY;
+import static com.yahoo.bard.webservice.druid.model.DefaultQueryType.TOP_N;
+import static com.yahoo.bard.webservice.druid.model.DefaultQueryType.TIMESERIES;
+
 import com.yahoo.bard.webservice.data.dimension.Dimension;
-import com.yahoo.bard.webservice.druid.model.QueryType;
+import com.yahoo.bard.webservice.druid.model.DefaultQueryType;
 import com.yahoo.bard.webservice.druid.model.aggregation.Aggregation;
 import com.yahoo.bard.webservice.druid.model.aggregation.CountAggregation;
 import com.yahoo.bard.webservice.druid.model.aggregation.LongSumAggregation;
@@ -85,7 +89,6 @@ import java.util.List;
  */
 public class WeightEvaluationQuery extends GroupByQuery {
     private static final Logger LOG = LoggerFactory.getLogger(WeightEvaluationQuery.class);
-    public static final long DEFAULT_DRUID_TOP_N_THRESHOLD = 1000;
 
     /**
      * Generate a query that calculates the even weight of the response cardinality of the given query.
@@ -103,7 +106,7 @@ public class WeightEvaluationQuery extends GroupByQuery {
                 Collections.<Aggregation>singletonList(new LongSumAggregation("count", "count")),
                 Collections.<PostAggregation>emptyList(),
                 query.getIntervals(),
-                query.getQueryType() == QueryType.GROUP_BY ? stripColumnsFromLimitSpec(query) : null
+                query.getQueryType() == DefaultQueryType.GROUP_BY ? stripColumnsFromLimitSpec(query) : null
         );
     }
 
@@ -124,52 +127,6 @@ public class WeightEvaluationQuery extends GroupByQuery {
         // get inner-most query for evaluation
         DruidAggregationQuery<?> innerQuery = query.getInnermostQuery();
 
-        int weight = Utils.getSubsetByType(innerQuery.getAggregations(), SketchAggregation.class).size();
-
-        return new WeightEvaluationQuery(innerQuery, weight);
-    }
-
-    /**
-     * Evaluate Druid query for worst possible case expensive aggregation that could bring down Druid.
-     * <p>
-     * Number of Sketches * # of periods in iteration * cardinality of each dimension values
-     *
-     * @param query  The base query being estimated
-     *
-     * @return worst case rows
-     * @throws ArithmeticException if the estimate is larger than {@link Long#MAX_VALUE}
-     */
-    public static long getWorstCaseWeightEstimate(DruidAggregationQuery<?> query) {
-        DruidAggregationQuery<?> innerQuery = query.getInnermostQuery();
-
-        int sketchWeight = Utils.getSubsetByType(innerQuery.getAggregations(), SketchAggregation.class).size();
-        if (sketchWeight == 0) {
-            return 0;
-        }
-
-        long periods = IntervalUtils.countSlicedIntervals(innerQuery.getIntervals(), innerQuery.getGranularity());
-        long cardinalityWeight;
-
-        switch (innerQuery.getQueryType()) {
-            case TOP_N:
-                TopNQuery topNQuery = (TopNQuery) innerQuery;
-                cardinalityWeight = Math.min(
-                        topNQuery.getDimension().getCardinality(),
-                        Math.max(topNQuery.getThreshold(), DEFAULT_DRUID_TOP_N_THRESHOLD)
-                );
-                break;
-            case GROUP_BY:
-            default:
-                cardinalityWeight = innerQuery.getDimensions().stream()
-                        .mapToLong(Dimension::getCardinality)
-                        .map(it -> Math.max(1, it)) // 0-cardinality dimensions should multiply by identity (1)
-                        .reduce(1, Math::multiplyExact);
-        }
-
-        long weight = Math.multiplyExact(cardinalityWeight, Math.multiplyExact(sketchWeight, periods));
-        LOG.debug("worst case weight = {}", weight);
-
-        return weight;
     }
 
     /**
@@ -235,5 +192,10 @@ public class WeightEvaluationQuery extends GroupByQuery {
         return ((GroupByQuery) query).getLimitSpec() == null ?
                 null :
                 ((GroupByQuery) query).getLimitSpec().withColumns(new LinkedHashSet<>());
+    }
+
+    @Override
+    public WeightEvaluationQuery buildWeightEvaluationQuery() {
+        return this;
     }
 }

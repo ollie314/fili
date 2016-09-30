@@ -3,14 +3,19 @@
 package com.yahoo.bard.webservice.druid.model.query;
 
 import com.yahoo.bard.webservice.data.dimension.Dimension;
-import com.yahoo.bard.webservice.druid.model.QueryType;
+import com.yahoo.bard.webservice.druid.model.DefaultQueryType;
 import com.yahoo.bard.webservice.druid.model.aggregation.Aggregation;
+import com.yahoo.bard.webservice.druid.model.aggregation.CountAggregation;
+import com.yahoo.bard.webservice.druid.model.aggregation.LongSumAggregation;
+import com.yahoo.bard.webservice.druid.model.aggregation.SketchAggregation;
 import com.yahoo.bard.webservice.druid.model.datasource.DataSource;
 import com.yahoo.bard.webservice.druid.model.datasource.QueryDataSource;
 import com.yahoo.bard.webservice.druid.model.filter.Filter;
 import com.yahoo.bard.webservice.druid.model.having.Having;
 import com.yahoo.bard.webservice.druid.model.orderby.LimitSpec;
+import com.yahoo.bard.webservice.druid.model.postaggregation.ConstantPostAggregation;
 import com.yahoo.bard.webservice.druid.model.postaggregation.PostAggregation;
+import com.yahoo.bard.webservice.util.Utils;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -19,6 +24,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
 
 /**
  * Druid groupBy query.
@@ -63,7 +71,7 @@ public class GroupByQuery extends AbstractDruidAggregationQuery<GroupByQuery> {
             boolean doFork
     ) {
         super(
-                QueryType.GROUP_BY,
+                DefaultQueryType.GROUP_BY,
                 dataSource,
                 granularity,
                 dimensions,
@@ -149,6 +157,60 @@ public class GroupByQuery extends AbstractDruidAggregationQuery<GroupByQuery> {
 
     public LimitSpec getLimitSpec() {
         return limitSpec;
+    }
+
+    @Override
+    public DruidAggregationQuery<?> buildWeightEvaluationQuery() {
+        return new GroupByQuery(
+                makeInnerQuery(Utils.getSubsetByType(getAggregations(), SketchAggregation.class).size()),
+                AllGranularity.INSTANCE,
+                Collections.emptyList(),
+                null, //filters
+                null, //having
+                Collections.singletonList(new LongSumAggregation("count", "count")),
+                Collections.emptyList(),
+                getIntervals(),
+                stripColumnsFromLimitSpec()
+        );
+    }
+    /**
+     * Make the inner query for the weight evaluation query. The primary point of the inner query is to provide a weight
+     * per expected response row of the given query.
+     *
+     * @param weight  Weight to apply to each row for the weight query
+     *
+     * @return A weight query that gives a weight per expected response row of the given query
+     */
+    private DataSource makeInnerQuery(double weight) {
+
+        List<Aggregation> aggregations;
+        aggregations = Collections.singletonList(new CountAggregation("ignored"));
+
+        // Get the inner post aggregation
+        List<PostAggregation> postAggregations = Collections.singletonList(
+                new ConstantPostAggregation("count", weight)
+        );
+        GroupByQuery inner = new GroupByQuery(
+                getDataSource(),
+                getGranularity(),
+                getDimensions(),
+                getFilter(),
+                null, //having
+                aggregations,
+                postAggregations,
+                getIntervals(),
+                stripColumnsFromLimitSpec()
+        );
+        return new QueryDataSource(inner);
+    }
+
+    /**
+     * Strip the columns from the LimitSpec on the query and return it, if present.
+     *
+     * @return the cleaned LimitSpec if there is one
+     */
+    private LimitSpec stripColumnsFromLimitSpec() {
+        return getLimitSpec() == null ? null : getLimitSpec().withColumns(new LinkedHashSet<>());
     }
 
     // CHECKSTYLE:OFF

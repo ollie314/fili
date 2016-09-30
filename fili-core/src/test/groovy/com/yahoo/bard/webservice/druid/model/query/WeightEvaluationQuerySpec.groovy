@@ -128,7 +128,6 @@ class WeightEvaluationQuerySpec extends Specification {
         WeightEvaluationQuery.getWorstCaseWeightEstimate(groupByQuery) == 1 * 29 * 8 * queryWeightLimit
     }
 
-
     def "Worst case estimate calculation for daily average aggregated to week"() {
         given: "weekly day average in outer query, use inner daily time grain"
         final DataApiRequest apiRequest = new DataApiRequest(

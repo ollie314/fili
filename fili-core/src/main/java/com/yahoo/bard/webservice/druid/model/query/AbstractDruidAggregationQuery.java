@@ -3,15 +3,23 @@
 package com.yahoo.bard.webservice.druid.model.query;
 
 import com.yahoo.bard.webservice.data.dimension.Dimension;
+import com.yahoo.bard.webservice.druid.model.DefaultQueryType;
 import com.yahoo.bard.webservice.druid.model.QueryType;
 import com.yahoo.bard.webservice.druid.model.aggregation.Aggregation;
+import com.yahoo.bard.webservice.druid.model.aggregation.LongSumAggregation;
+import com.yahoo.bard.webservice.druid.model.aggregation.SketchAggregation;
 import com.yahoo.bard.webservice.druid.model.datasource.DataSource;
 import com.yahoo.bard.webservice.druid.model.filter.Filter;
+import com.yahoo.bard.webservice.druid.model.orderby.LimitSpec;
 import com.yahoo.bard.webservice.druid.model.postaggregation.PostAggregation;
+import com.yahoo.bard.webservice.util.IntervalUtils;
+import com.yahoo.bard.webservice.util.Utils;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import org.joda.time.Interval;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -25,6 +33,7 @@ import java.util.Set;
  */
 public abstract class AbstractDruidAggregationQuery<Q extends AbstractDruidAggregationQuery<? super Q>>
         extends AbstractDruidFactQuery<Q> implements DruidAggregationQuery<Q> {
+    private static final Logger LOG = LoggerFactory.getLogger(AbstractDruidAggregationQuery.class);
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     protected final Collection<Dimension> dimensions;
@@ -81,5 +90,58 @@ public abstract class AbstractDruidAggregationQuery<Q extends AbstractDruidAggre
     @Override
     public Collection<PostAggregation> getPostAggregations() {
         return new LinkedHashSet<>(postAggregations);
+    }
+
+    @Override
+    public long computeWeight() {
+        long sketchWeight = computeSketchWeight();
+        if (sketchWeight == 0) {
+            return 0;
+        }
+
+        long weight = Math.multiplyExact(
+                computeCardinalityWeight(),
+                Math.multiplyExact(sketchWeight, computePeriodWeight())
+        );
+        LOG.debug("worst case weight = {}", weight);
+
+        return weight;
+    }
+
+    /**
+     * Compute a weight based on the sketches in the query.
+     * <p>
+     * By default, the sketch weight is the number of sketch aggregations in the query.
+     *
+     * @return A weight based on the sketches in the query
+     */
+    protected long computeSketchWeight() {
+        return Utils.getSubsetByType(getAggregations(), SketchAggregation.class).size();
+    }
+
+    /**
+     * Computes a weight based on the period of the query.
+     * <p>
+     * By default, a query's period is the number of intervals in the query, after the intervals have been simplified
+     * and partitioned by grain.
+     *
+     * @return A weight based on the period of the query
+     */
+    protected long computePeriodWeight() {
+        return IntervalUtils.countSlicedIntervals(getIntervals(), getGranularity());
+    }
+
+    /**
+     * Computes a weight based on the cardinality of the dimensions of a query.
+     * <p>
+     * By default, the weight is computed by multiplying together the cardinality of every non-empty dimension.
+     *
+     * @return A weight based on the cardinality of a dimension
+     */
+    protected long computeCardinalityWeight() {
+        return getDimensions().stream()
+                .mapToLong(Dimension::getCardinality)
+                .filter(cardinality -> cardinality > 0)
+                .reduce(1, Math::multiplyExact);
     }
 }

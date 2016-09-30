@@ -3,8 +3,10 @@
 package com.yahoo.bard.webservice.druid.model.query;
 
 import com.yahoo.bard.webservice.data.dimension.Dimension;
+import com.yahoo.bard.webservice.druid.model.DefaultQueryType;
 import com.yahoo.bard.webservice.druid.model.QueryType;
 import com.yahoo.bard.webservice.druid.model.aggregation.Aggregation;
+import com.yahoo.bard.webservice.druid.model.aggregation.LongSumAggregation;
 import com.yahoo.bard.webservice.druid.model.datasource.DataSource;
 import com.yahoo.bard.webservice.druid.model.filter.Filter;
 import com.yahoo.bard.webservice.druid.model.postaggregation.PostAggregation;
@@ -45,7 +47,7 @@ public class TimeSeriesQuery extends AbstractDruidAggregationQuery<TimeSeriesQue
             boolean doFork
     ) {
         super(
-                QueryType.TIMESERIES,
+                DefaultQueryType.TIMESERIES,
                 dataSource,
                 granularity,
                 Collections.<Dimension>emptySet(),
@@ -93,6 +95,21 @@ public class TimeSeriesQuery extends AbstractDruidAggregationQuery<TimeSeriesQue
     @Override
     public Collection<Dimension> getDimensions() {
         return super.getDimensions();
+    }
+
+    @Override
+    public DruidAggregationQuery<?> buildWeightEvaluationQuery() {
+        return new GroupByQuery(
+                null, //inner query
+                AllGranularity.INSTANCE,
+                Collections.emptyList(),
+                null, //filters
+                null, //having
+                Collections.singletonList(new LongSumAggregation("count", "count")),
+                Collections.emptyList(),
+                getIntervals(),
+                null //limit spec
+        );
     }
 
     // CHECKSTYLE:OFF
